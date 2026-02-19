@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Màquina de Monomis</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          syne: ['Syne', 'sans-serif'],
+          mono: ['Space Mono', 'monospace'],
+        },
+        colors: {
+          bg: '#1a1d21',
+          surface: '#22262b',
+          border: '#33393f',
+          accent: '#3a9ff5',
+          muted: '#7a8694',
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body {
+    background-color: #16191d;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, #ffffff06 39px, #ffffff06 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, #ffffff06 39px, #ffffff06 40px);
+  }
+
+  .glow-blue { box-shadow: 0 0 24px 4px #3a9ff544; }
+
+  /* Spinner */
+  #spinOverlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(22,25,29,0.93); z-index: 50;
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 28px; backdrop-filter: blur(6px);
+  }
+  #spinOverlay.active { display: flex; }
+
+  .dice-scene { perspective: 500px; }
+  .dice {
+    width: 90px; height: 90px; position: relative;
+    transform-style: preserve-3d;
+    animation: rollDice 0.55s ease-in-out infinite alternate;
+  }
+  @keyframes rollDice {
+    0%   { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
+    20%  { transform: rotateX(200deg) rotateY(80deg)  rotateZ(40deg); }
+    40%  { transform: rotateX(80deg)  rotateY(260deg) rotateZ(160deg); }
+    60%  { transform: rotateX(260deg) rotateY(170deg) rotateZ(80deg); }
+    80%  { transform: rotateX(140deg) rotateY(320deg) rotateZ(200deg); }
+    100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(300deg); }
+  }
+  .dice-face {
+    position: absolute; width: 90px; height: 90px;
+    border: 2px solid #3a9ff555; background: rgba(34,38,43,0.95);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Mono', monospace; font-size: 1.8rem; font-weight: 700; color: #3a9ff5;
+    box-shadow: inset 0 0 20px #3a9ff511;
+  }
+  .face-front  { transform: translateZ(45px); }
+  .face-back   { transform: rotateY(180deg) translateZ(45px); }
+  .face-right  { transform: rotateY(90deg)  translateZ(45px); }
+  .face-left   { transform: rotateY(-90deg) translateZ(45px); }
+  .face-top    { transform: rotateX(90deg)  translateZ(45px); }
+  .face-bottom { transform: rotateX(-90deg) translateZ(45px); }
+
+  .spin-dots::after { content: ''; animation: dots 1.2s steps(4,end) infinite; }
+  @keyframes dots {
+    0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} 100%{content:''}
+  }
+
+  @keyframes revealResult {
+    from { opacity: 0; transform: scale(0.94) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .reveal { animation: revealResult 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(-5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Level buttons */
+  .diff-btn {
+    flex: 1; padding: 8px 4px; border-radius: 8px;
+    border: 1.5px solid #33393f; background: transparent; color: #7a8694;
+    font-family: 'Space Mono', monospace; font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .diff-btn.active-baix        { border-color: #4af0c8; color: #4af0c8; background: #4af0c80e; }
+  .diff-btn.active-intermedi   { border-color: #3a9ff5; color: #3a9ff5; background: #3a9ff50e; }
+  .diff-btn.active-dificil     { border-color: #f0a84a; color: #f0a84a; background: #f0a84a0e; }
+  .diff-btn.active-professional{ border-color: #ff5c5c; color: #ff5c5c; background: #ff5c5c0e; }
+
+  /* Qty buttons */
+  .qty-btn {
+    width: 52px; height: 52px; border-radius: 10px;
+    border: 1.5px solid #33393f; background: transparent; color: #7a8694;
+    font-family: 'Space Mono', monospace; font-size: 1.4rem; font-weight: 700;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+  }
+  .qty-btn.active { border-color: #3a9ff5; color: #3a9ff5; background: #3a9ff50e; }
+
+  /* Mono card */
+  .mono-card {
+    background: #1a1d21; border: 1px solid #33393f; border-radius: 10px;
+    padding: 12px 16px; font-family: 'Space Mono', monospace;
+    font-size: 0.95rem; color: #3a9ff5; animation: fadeUp 0.25s ease;
+    border-left: 3px solid #3a9ff5;
+  }
+  .mono-label { font-size: 0.58rem; color: #7a8694; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+
+  /* Op colors in result */
+  .op-plus  { color: #4af0c8; }
+  .op-minus { color: #ff5c5c; }
+  .op-times { color: #3a9ff5; }
+  .op-div   { color: #f0a84a; }
+
+  @keyframes solveFade {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .solve-reveal { animation: solveFade 0.35s ease forwards; }
+</style>
+</head>
+<body class="font-syne text-white min-h-screen flex flex-col items-center py-14 px-4">
+
+  <!-- Spinner -->
+  <div id="spinOverlay">
+    <div class="dice-scene">
+      <div class="dice">
+        <div class="dice-face face-front">+</div>
+        <div class="dice-face face-back">−</div>
+        <div class="dice-face face-right">×</div>
+        <div class="dice-face face-left">÷</div>
+        <div class="dice-face face-top">±</div>
+        <div class="dice-face face-bottom">·</div>
+      </div>
+    </div>
+    <div class="font-mono text-xs uppercase tracking-widest spin-dots" style="color:#7a8694">Processant</div>
+  </div>
+
+  <h1 class="text-5xl font-extrabold tracking-tight mb-2" style="color:#3a9ff5">Màquina de Monomis</h1>
+  <p class="font-mono text-xs mb-10 tracking-widest uppercase" style="color:#7a8694">sumes · restes · multiplicacions · divisions</p>
+
+  <div class="w-full max-w-2xl rounded-2xl p-8 flex flex-col gap-6" style="background:#22262b;border:1px solid #33393f">
+
+    <!-- Nivell -->
+    <div>
+      <label class="text-xs font-mono uppercase tracking-widest mb-3 block" style="color:#7a8694">Nivell de configuració</label>
+      <div class="flex gap-2">
+        <button class="diff-btn active-baix"  data-level="baix"         onclick="setLevel(this)">Baix</button>
+        <button class="diff-btn"              data-level="intermedi"    onclick="setLevel(this)">Intermedi</button>
+        <button class="diff-btn"              data-level="dificil"      onclick="setLevel(this)">Difícil</button>
+        <button class="diff-btn"              data-level="professional" onclick="setLevel(this)">Professional</button>
+      </div>
+    </div>
+
+    <!-- Quantitat -->
+    <div>
+      <label class="text-xs font-mono uppercase tracking-widest mb-3 block" style="color:#7a8694">Nombre de monomis</label>
+      <div class="flex gap-3">
+        <button class="qty-btn active" data-qty="2" onclick="setQty(this)">2</button>
+        <button class="qty-btn"        data-qty="3" onclick="setQty(this)">3</button>
+        <button class="qty-btn"        data-qty="4" onclick="setQty(this)">4</button>
+      </div>
+    </div>
+
+    <hr style="border-color:#33393f">
+
+    <!-- Monomis generats -->
+    <div id="monoList" class="flex flex-col gap-3 hidden"></div>
+
+    <!-- Botons -->
+    <div class="flex gap-3">
+      <button onclick="createMonomials()"
+        class="flex-1 flex flex-col items-center justify-center gap-1 py-4 rounded-xl transition-all duration-150 text-sm"
+        style="background:#1a1d21;border:1px solid #33393f;color:#7a8694"
+        onmouseover="this.style.borderColor='#3a9ff5';this.style.color='#3a9ff5'"
+        onmouseout="this.style.borderColor='#33393f';this.style.color='#7a8694'">
+        <span class="font-mono text-xl font-bold">m</span>
+        <span class="text-xs uppercase tracking-wider">Crear monomis</span>
+      </button>
+      <button onclick="generate()"
+        class="flex-1 flex flex-col items-center justify-center gap-1 font-extrabold py-4 rounded-xl transition-all hover:-translate-y-0.5 active:translate-y-0 duration-150"
+        style="background:#3a9ff5;color:#16191d"
+        onmouseover="this.style.boxShadow='0 0 24px 4px #3a9ff544'"
+        onmouseout="this.style.boxShadow='none'">
+        <span class="text-xl">⚄</span>
+        <span class="text-xs uppercase tracking-widest">Random</span>
+      </button>
+    </div>
+
+    <!-- Resultat -->
+    <div id="resultBox" class="hidden rounded-xl p-6 flex flex-col gap-4" style="background:#1a1d21;border:1px solid #33393f">
+      <div>
+        <div class="text-xs font-mono uppercase tracking-widest mb-2" style="color:#7a8694">Expressió generada:</div>
+        <div id="resultValue" class="font-mono text-xl font-bold text-white leading-relaxed break-all"></div>
+      </div>
+      <button onclick="showSolution()" id="solveBtn"
+        class="w-full font-mono text-sm py-3 rounded-xl transition-colors uppercase tracking-widest"
+        style="border:1px solid #33393f;color:#7a8694"
+        onmouseover="this.style.borderColor='#3a9ff5';this.style.color='#3a9ff5'"
+        onmouseout="this.style.borderColor='#33393f';this.style.color='#7a8694'">
+        Mostrar solució
+      </button>
+      <div id="solutionBox" class="hidden"></div>
+    </div>
+
+  </div>
+
+<script>
+  let currentLevel   = 'baix';
+  let currentQty     = 2;
+  let generatedMonos = [];   // [{coef: Frac, parts: [{var,exp}]}]
+  let currentOps     = [];
+
+  // ── Aritmètica racional exacta ──────────────────────────────────────────
+  // Una fracció és {n: enter, d: enter positiu}, sempre reduïda i d>0
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a; }
+
+  function frac(n, d = 1) {
+    if (d === 0) return {n: 0, d: 1}; // evitar /0
+    if (d < 0)  { n = -n; d = -d; }
+    const g = gcd(Math.abs(n), d);
+    return { n: n/g, d: d/g };
+  }
+
+  function fracAdd(a, b) { return frac(a.n*b.d + b.n*a.d, a.d*b.d); }
+  function fracSub(a, b) { return frac(a.n*b.d - b.n*a.d, a.d*b.d); }
+  function fracMul(a, b) { return frac(a.n*b.n, a.d*b.d); }
+  function fracDiv(a, b) { return frac(a.n*b.d, a.d*b.n); }
+  function fracNeg(a)    { return frac(-a.n, a.d); }
+  function fracAbs(a)    { return frac(Math.abs(a.n), a.d); }
+  function fracIsZero(a) { return a.n === 0; }
+  function fracIsNeg(a)  { return a.n < 0; }
+
+  // Formata una fracció com "3", "−5", "2/3", "−7/4", etc.
+  function fracToStr(f, absVal = false) {
+    const n = absVal ? Math.abs(f.n) : f.n;
+    if (f.d === 1) return String(n);
+    return `${n}/${f.d}`;
+  }
+
+  // ── Utilitats ──────────────────────────────────────────────────────────
+  function randInt(min, max) { return Math.floor(Math.random()*(max-min+1))+min; }
+  function randSign() { return Math.random()<0.5 ? 1 : -1; }
+
+  function supExp(n) {
+    const s = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+    return String(n).split('').map(c=>s[c]||c).join('');
+  }
+
+  // Mostra un monomi. coef és una Frac, parts [{var,exp}]
+  function monoToStr(coef, parts) {
+    const neg = fracIsNeg(coef);
+    const absC = fracAbs(coef);
+    const sign = neg ? '−' : '';
+    let varPart = '';
+    parts.forEach(p => {
+      if (p.exp === 0) return;
+      varPart += p.var + (p.exp === 1 ? '' : supExp(p.exp));
+    });
+    // Si coef és ±1 i hi ha part literal, no mostrem el "1"
+    const showCoef = !(absC.n === 1 && absC.d === 1 && varPart);
+    const coefStr = showCoef ? fracToStr(absC, true) : '';
+    // Si és fracció i hi ha part literal, posem parèntesis: (2/3)x
+    const needParen = absC.d > 1 && varPart;
+    const coefDisplay = needParen ? `(${coefStr})` : coefStr;
+    return sign + coefDisplay + varPart || '0';
+  }
+
+  // ── Generació de monomis ───────────────────────────────────────────────
+  function generateMonomial() {
+    const lvl = currentLevel;
+    let coef, parts;
+
+    if (lvl === 'baix') {
+      coef  = frac(randInt(1,9) * randSign());
+      parts = [{var:'x', exp: randInt(1,2)}];
+    } else if (lvl === 'intermedi') {
+      coef  = frac(randInt(1,15) * randSign());
+      const useY = Math.random() < 0.4;
+      parts = [{var:'x', exp: randInt(1,3)}];
+      if (useY) parts.push({var:'y', exp: randInt(1,2)});
+    } else if (lvl === 'dificil') {
+      coef  = frac(randInt(1,25) * randSign());
+      const nVars = randInt(1,3);
+      parts = ['x','y','z'].slice(0,nVars).map(v => ({var:v, exp: randInt(1,4)}));
+    } else {
+      // professional: possible fracció
+      if (Math.random() < 0.5) {
+        coef = frac(randInt(1,12) * randSign(), randInt(2,9));
+      } else {
+        coef = frac(randInt(1,50) * randSign());
+      }
+      const nVars = randInt(2,4);
+      parts = ['x','y','z','w'].slice(0,nVars).map(v => ({var:v, exp: randInt(1,6)}));
+    }
+    return { coef, parts };
+  }
+
+  // ── UI: nivell i quantitat ─────────────────────────────────────────────
+  function setLevel(btn) {
+    document.querySelectorAll('.diff-btn').forEach(b => b.className = 'diff-btn');
+    btn.classList.add('active-' + btn.dataset.level);
+    currentLevel = btn.dataset.level;
+  }
+
+  function setQty(btn) {
+    document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentQty = parseInt(btn.dataset.qty);
+  }
+
+  function createMonomials() {
+    generatedMonos = [];
+    const list = document.getElementById('monoList');
+    list.innerHTML = '';
+    list.classList.remove('hidden');
+    for (let i = 0; i < currentQty; i++) {
+      const m = generateMonomial();
+      generatedMonos.push(m);
+      const card = document.createElement('div');
+      card.className = 'mono-card';
+      card.innerHTML = `<div class="mono-label">M${i+1}</div><div>${monoToStr(m.coef, m.parts)}</div>`;
+      list.appendChild(card);
+    }
+    document.getElementById('resultBox').classList.add('hidden');
+  }
+
+  // ── Operacions i Random ────────────────────────────────────────────────
+  const OPS = ['suma','resta','mult','div'];
+  function pickOp()     { return OPS[Math.floor(Math.random()*OPS.length)]; }
+  function opSymbol(op) { return {suma:' + ', resta:' − ', mult:' · ', div:' ÷ '}[op]; }
+  function opClass(op)  { return {suma:'op-plus', resta:'op-minus', mult:'op-times', div:'op-div'}[op]; }
+
+  function generate() {
+    if (generatedMonos.length === 0) createMonomials();
+    const overlay = document.getElementById('spinOverlay');
+    overlay.classList.add('active');
+    document.getElementById('resultBox').classList.add('hidden');
+
+    setTimeout(() => {
+      currentOps = [null];
+      const m0str = monoToStr(generatedMonos[0].coef, generatedMonos[0].parts);
+      let html = `<span class="text-white">${m0str}</span>`;
+
+      for (let i = 1; i < generatedMonos.length; i++) {
+        const op  = pickOp();
+        currentOps.push(op);
+        const s   = monoToStr(generatedMonos[i].coef, generatedMonos[i].parts);
+        const d   = fracIsNeg(generatedMonos[i].coef) ? `(${s})` : s;
+        html += `<span class="${opClass(op)}">${opSymbol(op)}</span><span class="text-white">${d}</span>`;
+      }
+
+      overlay.classList.remove('active');
+      const rb = document.getElementById('resultBox');
+      document.getElementById('resultValue').innerHTML = html;
+      document.getElementById('solutionBox').classList.add('hidden');
+      document.getElementById('solutionBox').innerHTML = '';
+      document.getElementById('solveBtn').classList.remove('hidden');
+      rb.classList.remove('hidden');
+      rb.classList.remove('reveal');
+      void rb.offsetWidth;
+      rb.classList.add('reveal');
+      rb.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }, 1800);
+  }
+
+  // ── Càlcul del resultat final (aritmètica exacta) ──────────────────────
+  function mergeParts(p1, p2, op) {
+    const map = {};
+    p1.forEach(p => { map[p.var] = (map[p.var]||0) + p.exp; });
+    p2.forEach(p => { map[p.var] = (map[p.var]||0) + (op==='mult' ? p.exp : -p.exp); });
+    return Object.entries(map).filter(([,e])=>e!==0).map(([v,e])=>({var:v,exp:e}));
+  }
+
+  function computeFinalResult() {
+    // Precedència: × i ÷ primer → generem tokens de suma/resta
+    const tokens = []; // {coef: Frac, parts}
+    let rCoef  = generatedMonos[0].coef;
+    let rParts = [...generatedMonos[0].parts];
+    let pendingSign = 1; // +1 o -1
+
+    for (let i = 1; i < generatedMonos.length; i++) {
+      const op = currentOps[i];
+      const m  = generatedMonos[i];
+
+      if (op === 'mult') {
+        rCoef  = fracMul(rCoef, m.coef);
+        rParts = mergeParts(rParts, m.parts, 'mult');
+      } else if (op === 'div') {
+        rCoef  = fracDiv(rCoef, m.coef);
+        rParts = mergeParts(rParts, m.parts, 'div');
+      } else {
+        // flush
+        tokens.push({ coef: pendingSign === 1 ? rCoef : fracNeg(rCoef), parts: rParts });
+        pendingSign = op === 'suma' ? 1 : -1;
+        rCoef  = m.coef;
+        rParts = [...m.parts];
+      }
+    }
+    tokens.push({ coef: pendingSign === 1 ? rCoef : fracNeg(rCoef), parts: rParts });
+
+    // Agrupa per part literal (suma/resta monomis semblants)
+    const groups = {};
+    tokens.forEach(t => {
+      const lit = t.parts.map(p=>`${p.var}^${p.exp}`).sort().join('·');
+      if (!groups[lit]) groups[lit] = { parts: t.parts, total: frac(0) };
+      groups[lit].total = fracAdd(groups[lit].total, t.coef);
+    });
+
+    const result = Object.values(groups).filter(g => !fracIsZero(g.total));
+    if (result.length === 0) return '0';
+
+    // Ordena per grau total descendent
+    result.sort((a,b) => {
+      const ea = a.parts.reduce((s,p)=>s+p.exp,0);
+      const eb = b.parts.reduce((s,p)=>s+p.exp,0);
+      return eb - ea;
+    });
+
+    return result.map((g, i) => {
+      const neg = fracIsNeg(g.total);
+      const absC = fracAbs(g.total);
+      const s = monoToStr(absC, g.parts);
+      if (i === 0) return (neg ? '−' : '') + s;
+      return (neg ? ' − ' : ' + ') + s;
+    }).join('');
+  }
+
+  function showSolution() {
+    const result = computeFinalResult();
+    const solBox = document.getElementById('solutionBox');
+    solBox.innerHTML = `
+      <div class="solve-reveal rounded-xl p-4 mt-1" style="background:#16191d;border:1px solid #3a9ff544">
+        <div class="text-xs font-mono uppercase tracking-widest mb-2" style="color:#7a8694">Solució:</div>
+        <div class="font-mono text-2xl font-bold" style="color:#3a9ff5">${result}</div>
+      </div>`;
+    solBox.classList.remove('hidden');
+    document.getElementById('solveBtn').classList.add('hidden');
+  }
+</script>
+</body>
+</html>
